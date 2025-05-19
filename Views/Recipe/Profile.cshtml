@@ -1,0 +1,37 @@
+﻿@model RecipeSystem.ViewModels.RecipeVm
+@{
+    ViewData["Title"] = "Мои рецепты";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Мои рецепты</h1>
+    <p><a asp-action="Create" asp-controller="Recipe" class="btn btn-primary">Добавить рецепт</a></p>
+    <p><a asp-action="Favorites" asp-controller="Recipe" class="btn btn-info">Посмотреть избранные рецепты</a></p>
+    <p><a asp-action="Index" asp-controller="Recipe" class="btn btn-secondary">На главную</a></p>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead class="thead-dark">
+        <tr>
+            <th>Название</th>
+            <th>Описание</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var recipe in Model.Recipes)
+        {
+            <tr>
+                <td><a asp-action="Details" asp-controller="Recipe" asp-route-id="@recipe.Id">@recipe.Name</a></td>
+                <td>@recipe.Description</td>
+                <td>
+                    <a asp-action="EditUserRecipe" asp-controller="Recipe" asp-route-id="@recipe.Id" class="btn btn-warning btn-sm">Редактировать</a>
+                    <form asp-action="DeleteUserRecipe" asp-controller="Recipe" asp-route-id="@recipe.Id" method="post" style="display:inline-block">
+                        <input type="hidden" asp-for="@recipe.Id" />
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Вы уверены?')">Удалить</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

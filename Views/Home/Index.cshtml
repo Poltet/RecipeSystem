@@ -1,0 +1,23 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+@using RecipeSystem.ViewModels
+@model RecipeVm
+
+<div class="text-center">
+    <h1 class="display-4">Рецепты</h1>
+</div>
+<table border="1">
+    <tr>
+        <th>Название</th>
+        <th>Описание</th>
+        <th>Еще что-то</th>
+    </tr>
+    @foreach (var course in Model.Recipes)
+    {
+        <tr>
+            <td>@course.Name</td>
+            <td>@course.Description</td>
+        </tr>
+    }
+</table>

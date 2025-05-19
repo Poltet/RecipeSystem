@@ -1,0 +1,107 @@
+﻿@model RecipeSystem.ViewModels.SearchVm
+@{
+    ViewData["Title"] = "Поиск рецептов";
+}
+
+<h1>Поиск рецептов</h1>
+
+<div class="row">
+    <div class="col-md-12">
+        <form asp-action="Search" method="get">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <input type="text" name="query" class="form-control" placeholder="Введите название рецепта" value="@Model.Query" />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="categoryId" class="form-control">
+                        @foreach (var category in Model.Categories)
+                        {
+                            <option value="@category.Value" selected="@(category.Selected)">@category.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select asp-for="SortOrder" class="form-control" name="sortOrder">
+                        <option value="">Без сортировки</option>
+                        <option value="asc">По возрастанию времени приготовления</option>
+                        <option value="desc">По убыванию времени приготовления</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" type="submit">Поиск</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Query) || Model.SelectedCategoryId.HasValue || !string.IsNullOrEmpty(Model.SortOrder))
+{
+    <h4>Результаты поиска:</h4>
+}
+
+@if (Model.Recipes.Any() || Model.UserRecipes.Any())
+{
+    <div class="row">
+        @foreach (var recipe in Model.Recipes)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    @if (recipe.Photo != null)
+                    {
+                        <img src="data:image/jpeg;base64,@Convert.ToBase64String(recipe.Photo)" class="card-img-top" alt="@recipe.Name" style="height: 200px; object-fit: cover;" />
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@recipe.Name</h5>
+                        <p class="card-text">@recipe.Description</p>
+                        <p class="card-text"><small class="text-muted">Категория: @recipe.Category?.Name</small></p>
+                        <a asp-action="Details" asp-route-id="@recipe.Id" class="btn btn-primary">Открыть</a>
+                    </div>
+                </div>
+            </div>
+        }
+        @foreach (var recipe in Model.UserRecipes)
+        {
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    @if (recipe.Photo != null)
+                    {
+                        <img src="data:image/jpeg;base64,@Convert.ToBase64String(recipe.Photo)" class="card-img-top" alt="@recipe.Name" style="height: 200px; object-fit: cover;" />
+                    }
+                    <div class="card-body">
+                        <h5 class="card-title">@recipe.Name</h5>
+                        <p class="card-text">@recipe.Description</p>
+                        <p class="card-text"><small class="text-muted">Категория: @recipe.Category?.Name</small></p>
+                        <a asp-action="Details" asp-route-id="@recipe.BaseRecipeId" class="btn btn-primary">Открыть</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (!string.IsNullOrEmpty(Model.Query) || Model.SelectedCategoryId.HasValue || !string.IsNullOrEmpty(Model.SortOrder))
+{
+    <p>Рецепты не найдены.</p>
+}
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.querySelector('form');
+            form.addEventListener('submit', function (e) {
+                const queryInput = document.querySelector('input[name="query"]');
+                const categorySelect = document.querySelector('select[name="categoryId"]');
+                const sortSelect = document.querySelector('select[name="sortOrder"]');
+                if (!queryInput.value.trim() && !categorySelect.value && !sortSelect.value) {
+                    e.preventDefault();
+                    queryInput.classList.add('is-invalid');
+                    queryInput.placeholder = 'Введите запрос или выберите фильтры';
+                } else {
+                    queryInput.classList.remove('is-invalid');
+                }
+            });
+        });
+    </script>
+}

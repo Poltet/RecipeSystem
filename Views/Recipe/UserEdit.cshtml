@@ -1,0 +1,324 @@
+﻿@model RecipeSystem.Models.UserRecipe
+
+@{
+    ViewData["Title"] = "Редактировать рецепт";
+}
+
+<h1>Редактировать рецепт</h1>
+
+<hr />
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="EditUserRecipe" method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <input type="hidden" asp-for="Id" />
+            <input type="hidden" asp-for="UserId" />
+            <input type="hidden" asp-for="BaseRecipeId" />
+            <div class="form-group">
+                <label asp-for="Name" class="control-label">Название рецепта</label>
+                <input asp-for="Name" class="form-control" maxlength="50" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Description" class="control-label">Описание рецепта</label>
+                <textarea asp-for="Description" class="form-control" maxlength="255"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="CookingTime" class="control-label">Время приготовления (в минутах)</label>
+                <input asp-for="CookingTime" type="number" class="form-control" min="1" />
+                <span asp-validation-for="CookingTime" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Servings" class="control-label">Количество порций</label>
+                <input asp-for="Servings" type="number" class="form-control" min="1" />
+                <span asp-validation-for="Servings" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="CategoryID" class="control-label">Категория</label>
+                <select asp-for="CategoryID" class="form-control" asp-items="ViewBag.Categories"></select>
+                <span asp-validation-for="CategoryID" class="text-danger"></span>
+            </div>
+@*             <div class="form-group">
+                <label asp-for="Difficulty" class="control-label">Сложность</label>
+                <input asp-for="Difficulty" class="form-control" maxlength="20" />
+                <span asp-validation-for="Difficulty" class="text-danger"></span>
+            </div> *@
+            <div class="form-group">
+                <label asp-for="ComplexityId" class="control-label">Сложность</label>
+                <select asp-for="ComplexityId" class="form-control" asp-items="ViewBag.Complexity"></select>
+                <span asp-validation-for="ComplexityId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Photo" class="control-label">Фото блюда</label>
+                <input asp-for="Photo" type="file" accept="image/jpeg,image/png" class="form-control" />
+                @if (Model.Photo != null)
+                {
+                    <img src="data:image/jpeg;base64,@Convert.ToBase64String(Model.Photo)" alt="Фото" style="max-width: 200px;" />
+                }
+                <span asp-validation-for="Photo" class="text-danger"></span>
+            </div>
+
+            <div id="ingredients-container">
+                <h4>Ингредиенты</h4>
+                @{
+                    var ingredientsCount = Model.RecipeIngredients != null ? Model.RecipeIngredients.Count : 0;
+                    if (ingredientsCount == 0)
+                    {
+                        <div class="ingredient-row">
+                            <div class="form-group">
+                                <label>Ингредиент</label>
+                                <select name="recipeIngredients[0].IngredientId" class="form-control ingredient-select" asp-items="ViewBag.Ingredients" onchange="updateMeasure(this, 0)"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Количество </label>
+                                <input name="recipeIngredients[0].Quantity" type="number" class="form-control" min="0.01" step="0.01" value="1" />
+                            </div>
+                            <div class="form-group" style="display:none;">
+                                <label>Единица измерения</label>
+                                <span class="measure-display" data-index="0"></span>
+                                <input name="recipeIngredients[0].Measure" type="hidden" class="measure-input" />
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        for (int i = 0; i < ingredientsCount; i++)
+                        {
+                            <div class="ingredient-row">
+                                <div class="form-group">
+                                    <label>Ингредиент</label>
+                                    <select name="recipeIngredients[@i].IngredientId" class="form-control ingredient-select" asp-items="ViewBag.Ingredients" onchange="updateMeasure(this, @i)">
+                                        @if (Model.RecipeIngredients[i] != null && Model.RecipeIngredients[i].Ingredient != null)
+                                        {
+                                            <option value="@Model.RecipeIngredients[i].IngredientId" selected>@Model.RecipeIngredients[i].Ingredient.Name</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@Model.RecipeIngredients[i]?.IngredientId" selected>Выберите ингредиент</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Количество</label>
+                                    <input name="recipeIngredients[@i].Quantity" type="number" class="form-control" min="0.01" step="0.01" value="@(Model.RecipeIngredients[i]?.Quantity ?? 1)" />
+                                </div>
+                                <div class="form-group" style="display:none;">
+                                    <label>Единица измерения</label>
+                                    <span class="measure-display" data-index="@i">@(Model.RecipeIngredients[i]?.Measure ?? "")</span>
+                                    <input name="recipeIngredients[@i].Measure" type="hidden" class="measure-input" value="@(Model.RecipeIngredients[i]?.Measure ?? "")" />
+                                </div>
+                                @if (i > 0)
+                                {
+                                    <button type="button" class="btn btn-danger remove-ingredient">Удалить</button>
+                                }
+                            </div>
+                        }
+                    }
+                }
+                <button type="button" class="btn btn-secondary add-ingredient">Добавить ингредиент</button>
+            </div>
+
+            <div id="steps-container">
+                <h4>Шаги приготовления</h4>
+                @{
+                    var stepsCount = Model.Steps != null ? Model.Steps.Count : 0;
+                    if (stepsCount == 0)
+                    {
+                        <div class="step-row">
+                            <div class="form-group">
+                                <label>Описание шага</label>
+                                <textarea name="steps[0].Description" class="form-control" maxlength="255"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Время выполнения (в минутах)</label>
+                                <input name="steps[0].Time" type="number" class="form-control" min="0" value="10" />
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        for (int i = 0; i < stepsCount; i++)
+                        {
+                            <div class="step-row">
+                                <div class="form-group">
+                                    <label>Описание шага</label>
+                                    <textarea name="steps[@i].Description" class="form-control" maxlength="255">@Model.Steps[i].Description</textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label>Время выполнения (в минутах)</label>
+                                    <input name="steps[@i].Time" type="number" class="form-control" min="0" value="@Model.Steps[i].Time" />
+                                </div>
+                                @if (i > 0)
+                                {
+                                    <button type="button" class="btn btn-danger remove-step">Удалить</button>
+                                }
+                            </div>
+                        }
+                    }
+                }
+                <button type="button" class="btn btn-secondary add-step">Добавить шаг</button>
+            </div>
+
+            <div class="form-group mt-3">
+                <input type="submit" value="Сохранить" class="btn btn-primary" />
+                <a asp-action="Index" asp-controller="Recipe" class="btn btn-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        const ingredientMeasures = {};
+        @foreach (var ingredient in ViewBag.Ingredients as IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>)
+        {
+            <text>ingredientMeasures[@ingredient.Value] = '@(ingredient.Group?.Name?.Trim() ?? "")';</text>
+        }
+
+        function updateMeasure(selectElement, index) {
+            const ingredientId = selectElement.value;
+            const measureInput = document.querySelector(`.measure-input[name="recipeIngredients[${index}].Measure"]`);
+            const measureDisplay = document.querySelectorAll(`.measure-display[data-index="${index}"]`)[0];
+            let measure = ingredientMeasures[ingredientId] || '';
+            if (measure.length > 20) {
+                measure = measure.substring(0, 20);
+                console.warn(`Единица измерения обрезана до 20 символов: ${measure}`);
+            }
+            measureInput.value = measure;
+            measureDisplay.textContent = measure;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            let ingredientIndex = @(Model?.RecipeIngredients?.Count ?? 1);
+            let stepIndex = @(Model?.Steps?.Count ?? 1);
+
+            document.querySelector('.add-ingredient').addEventListener('click', function () {
+                const container = document.getElementById('ingredients-container');
+                const newRow = container.querySelector('.ingredient-row').cloneNode(true);
+                newRow.querySelectorAll('input, select').forEach(input => {
+                    const name = input.name.replace(/\[\d+\]/, '[' + ingredientIndex + ']');
+                    input.name = name;
+                    if (input.type === 'number') input.value = '1';
+                    else if (input.type !== 'file') input.value = '';
+                });
+                const measureDisplay = newRow.querySelectorAll('.measure-display')[0];
+                measureDisplay.setAttribute('data-index', ingredientIndex);
+                measureDisplay.textContent = '';
+                const measureInput = newRow.querySelector('.measure-input');
+                measureInput.value = '';
+                const selectElement = newRow.querySelector('.ingredient-select');
+                selectElement.setAttribute('onchange', `updateMeasure(this, ${ingredientIndex})`);
+                newRow.querySelector('.remove-ingredient')?.remove();
+                newRow.appendChild(document.createElement('button')).outerHTML = '<button type="button" class="btn btn-danger remove-ingredient">Удалить</button>';
+                container.appendChild(newRow);
+                ingredientIndex++;
+            });
+
+            document.addEventListener('click', function (e) {
+                if (e.target.classList.contains('remove-ingredient')) {
+                    e.target.parentElement.remove();
+                }
+            });
+
+            document.querySelector('.add-step').addEventListener('click', function () {
+                const container = document.getElementById('steps-container');
+                const newRow = container.querySelector('.step-row').cloneNode(true);
+                newRow.querySelectorAll('input, textarea').forEach(input => {
+                    const name = input.name.replace(/\[\d+\]/, '[' + stepIndex + ']');
+                    input.name = name;
+                    if (input.type === 'number') input.value = '10';
+                    else input.value = '';
+                });
+                newRow.querySelector('.remove-step')?.remove();
+                newRow.appendChild(document.createElement('button')).outerHTML = '<button type="button" class="btn btn-danger remove-step">Удалить</button>';
+                container.appendChild(newRow);
+                stepIndex++;
+            });
+
+            document.addEventListener('click', function (e) {
+                if (e.target.classList.contains('remove-step')) {
+                    e.target.parentElement.remove();
+                }
+            });
+
+            document.querySelector('form').addEventListener('submit', function (e) {
+                let isValid = true;
+                const usedIngredients = new Set();
+
+                const name = document.querySelector('input[name="Name"]');
+                if (!name.value.trim()) {
+                    isValid = false;
+                    name.classList.add('is-invalid');
+                    alert('Название рецепта обязательно');
+                }
+
+                const cookingTime = document.querySelector('input[name="CookingTime"]');
+                if (!cookingTime.value || cookingTime.value <= 0) {
+                    isValid = false;
+                    cookingTime.classList.add('is-invalid');
+                    alert('Время приготовления должно быть больше 0');
+                }
+
+                const servings = document.querySelector('input[name="Servings"]');
+                if (!servings.value || servings.value <= 0) {
+                    isValid = false;
+                    servings.classList.add('is-invalid');
+                    alert('Количество порций должно быть больше 0');
+                }
+
+                const categoryId = document.querySelector('select[name="CategoryID"]');
+                if (!categoryId.value) {
+                    isValid = false;
+                    categoryId.classList.add('is-invalid');
+                    alert('Выберите категорию');
+                }
+
+                document.querySelectorAll('.ingredient-row').forEach(row => {
+                    const quantity = row.querySelector('input[name*="Quantity"]');
+                    const ingredientId = row.querySelector('select[name*="IngredientId"]');
+                    if (!quantity.value || quantity.value <= 0) {
+                        isValid = false;
+                        quantity.classList.add('is-invalid');
+                        alert('Количество ингредиента должно быть больше 0');
+                    }
+                    if (!ingredientId.value) {
+                        isValid = false;
+                        ingredientId.classList.add('is-invalid');
+                        alert('Выберите ингредиент');
+                    } else if (usedIngredients.has(ingredientId.value)) {
+                        isValid = false;
+                        ingredientId.classList.add('is-invalid');
+                        alert('Ингредиент не может быть добавлен дважды');
+                    } else {
+                        usedIngredients.add(ingredientId.value);
+                    }
+                });
+
+                document.querySelectorAll('.step-row').forEach(row => {
+                    const description = row.querySelector('textarea[name*="Description"]');
+                    const time = row.querySelector('input[name*="Time"]');
+                    if (!description.value.trim()) {
+                        isValid = false;
+                        description.classList.add('is-invalid');
+                        alert('Описание шага обязательно');
+                    }
+                    if (!time.value || time.value < 0) {
+                        isValid = false;
+                        time.classList.add('is-invalid');
+                        alert('Время выполнения шага не может быть отрицательным');
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                }
+            });
+
+            document.querySelectorAll('.ingredient-select').forEach((select, index) => {
+                updateMeasure(select, index);
+            });
+        });
+    </script>
+}

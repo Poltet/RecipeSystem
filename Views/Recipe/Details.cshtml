@@ -1,0 +1,62 @@
+﻿@model RecipeSystem.Models.Recipe
+
+@{
+    ViewData["Title"] = "Просмотр рецепта";
+}
+
+<h1>@Model.Name</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <dl class="row">
+            <dt class="col-sm-4">Название</dt>
+            <dd class="col-sm-8">@Model.Name</dd>
+            <dt class="col-sm-4">Описание</dt>
+            <dd class="col-sm-8">@Model.Description</dd>
+            <dt class="col-sm-4">Время приготовления</dt>
+            <dd class="col-sm-8">@Model.CookingTime минут</dd>
+            <dt class="col-sm-4">Количество порций</dt>
+            <dd class="col-sm-8">@Model.Servings</dd>
+            <dt class="col-sm-4">Категория</dt>
+            <dd class="col-sm-8">@Model.Category?.Name</dd>
+            <dt class="col-sm-4">Сложность</dt>
+            @* <dd class="col-sm-8">@Model.Difficulty</dd> *@
+            <dd class="col-sm-8">@(Model.Complexity?.Name ?? "Не указана")</dd>
+            <dt class="col-sm-4">Фото</dt>
+            <dd class="col-sm-8">
+                @if (Model.Photo != null)
+                {
+                    <img src="data:image/jpeg;base64,@Convert.ToBase64String(Model.Photo)" alt="Фото рецепта" style="max-width: 300px;" />
+                }
+                else
+                {
+                    <p>Нет фото</p>
+                }
+            </dd>
+            <dt class="col-sm-4">Ингредиенты</dt>
+            <dd class="col-sm-8">
+                <ul>
+                    @foreach (var ingredient in Model.RecipeIngredients ?? new List<RecipeIngredient>())
+                    {
+                        <li>@ingredient.Quantity @ingredient.Ingredient?.Measure @ingredient.Ingredient?.Name</li>
+                    }
+                </ul>
+            </dd>
+            <dt class="col-sm-4">Шаги приготовления</dt>
+            <dd class="col-sm-8">
+                <ol>
+                    @foreach (var step in Model.Steps ?? new List<RecipeStep>())
+                    {
+                        <li>@step.Description (Время: @step.Time мин)</li>
+                    }
+                </ol>
+            </dd>
+        </dl>
+        <a asp-action="Index" asp-controller="Home" class="btn btn-secondary">Назад</a>
+        @if (User.Identity.IsAuthenticated && User.IsInRole("Admin"))
+        {
+            <a asp-action="Edit" asp-controller="Recipe" asp-route-id="@Model.Id" class="btn btn-warning">Редактировать</a>
+        }
+        <a asp-action="DownloadDocx" asp-controller="Recipe" asp-route-id="@Model.Id" class="btn btn-success">Скачать в DOCX</a>
+    </div>
+</div>
