@@ -3,6 +3,8 @@
     ViewData["Title"] = "Рецепты";
 }
 
+<link rel="stylesheet" href="~/css/recipe.css" asp-append-version="true" />
+
 <div class="text-center">
     <h1 class="display-4">Рецепты</h1>
     @if (User.Identity.IsAuthenticated)
@@ -23,8 +25,8 @@
                 <div class="card-body">
                     <h5 class="card-title">@recipe.Name</h5>
                     <p class="card-text">@recipe.Description</p>
-                    <div class="btn-group" role="group">
-                        <a asp-action="Details" asp-controller="Recipe" asp-route-id="@recipe.Id" class="btn btn-primary btn-sm">Смотреть</a>
+                    <div class="btn-grid" role="group">
+                        <a asp-action="Details" asp-controller="Recipe" asp-route-id="@recipe.Id" class="btn btn-primary btn-sm">Открыть</a>
                         @if (User.Identity.IsAuthenticated)
                         {
                             if (User.IsInRole("Admin"))
@@ -45,7 +47,7 @@
                             }
                             <form asp-action="AddToFavorites" asp-controller="Recipe" method="post">
                                 <input type="hidden" name="recipeId" value="@recipe.Id" />
-                                <button type="submit" class="btn btn-success btn-sm">Добавить в избранное</button>
+                                <button type="submit" class="btn btn-success btn-sm">В избранное</button>
                             </form>
                         }
                     </div>

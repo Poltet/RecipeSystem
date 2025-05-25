@@ -11,6 +11,8 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using System.IO;
+using RecipeSystem.Data;
+using DocumentFormat.OpenXml.InkML;
 
 namespace RecipeSystem.Controllers
 {
@@ -18,10 +20,12 @@ namespace RecipeSystem.Controllers
     {
         private readonly RecipeVmBuilder _recipeVmBuilder;
         private readonly RecipeService _recipeService;
-        public RecipeController(RecipeService recipeService, RecipeVmBuilder recipeVmBuilder)
+        private readonly RecipeDbContext _context;
+        public RecipeController(RecipeService recipeService, RecipeVmBuilder recipeVmBuilder, RecipeDbContext context)
         {
             _recipeVmBuilder = recipeVmBuilder;
             _recipeService = recipeService;
+            _context = context;
         }
 
         // GET: RecipeController
@@ -57,11 +61,11 @@ namespace RecipeSystem.Controllers
         {
             ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name");
             ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name");
-            ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+            ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name)
+                .Select(i => new SelectListItem
             {
                 Value = i.Id.ToString(),
-                Text = i.Name,
-                Group = new SelectListGroup { Name = i.Measure?.Trim() } 
+                Text = i.Name
             });
             var model = new Recipe
             {
@@ -78,15 +82,8 @@ namespace RecipeSystem.Controllers
         {
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                    {
-                        Console.WriteLine($"Ошибка валидации: {error.ErrorMessage}");
-                    }
-                }
-
                 ModelState.Remove("Category");
+                ModelState.Remove("PhotoFile");
                 foreach (var key in ModelState.Keys.Where(k => k.Contains("RecipeIngredients") && k.Contains("Recipe")))
                 {
                     ModelState.Remove(key);
@@ -111,9 +108,25 @@ namespace RecipeSystem.Controllers
                         ModelState.AddModelError("", $"Этот ингредиент уже есть: {duplicate[0]}");
                     }
                 }
+                if (recipe.PhotoFile != null && recipe.PhotoFile.Length > 0)
+                {
+                    if (!recipe.PhotoFile.ContentType.StartsWith("image/"))
+                    {
+                        ModelState.AddModelError("PhotoFile", "Загружайте изображения только в формате JPEG или PNG.");
+                    }
+                    else
+                    {
+                        using (var memoryStream = new MemoryStream())
+                        {
+                            recipe.PhotoFile.CopyTo(memoryStream);
+                            recipe.Photo = memoryStream.ToArray();
+                        }
+                    }
+                }
 
                 if (ModelState.IsValid)
                 {
+                    Console.WriteLine("ModelState Is Valid");
                     recipe.RecipeIngredients = recipeIngredients?
                         .Where(ri => ri.Quantity > 0 && ri.IngredientId > 0)
                         .GroupBy(ri => ri.IngredientId)
@@ -125,16 +138,10 @@ namespace RecipeSystem.Controllers
                         })
                         .ToList() ?? new List<RecipeIngredient>();
 
-                    Console.WriteLine($"Received recipe: {(recipe != null ? recipe.Name : "null")}");
-                    Console.WriteLine($"recipeIngredients: {(recipeIngredients != null ? recipeIngredients.Count : "null")}");
-                    Console.WriteLine($"steps: {(steps != null ? steps.Count : "null")}");
-
                     recipe.Steps = steps?
-                        .Where(s => !string.IsNullOrEmpty(s.Description) /*&& s.StepNumber > 0*/ && s.Time >= 0)
-                        //.OrderBy(s => s.StepNumber)
+                        .Where(s => !string.IsNullOrEmpty(s.Description) && s.Time >= 0)
                         .Select(s => new RecipeStep
                         {
-                            //StepNumber = s.StepNumber,
                             Description = s.Description,
                             Time = s.Time
                         })
@@ -145,7 +152,7 @@ namespace RecipeSystem.Controllers
                 }
 
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", recipe.CategoryID);
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
                     Text = i.Name,
@@ -159,7 +166,7 @@ namespace RecipeSystem.Controllers
             {
                 ModelState.AddModelError("", $"Ошибка при добавлении рецепта: {ex.Message}");
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", recipe.CategoryID);
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
                     Text = i.Name,
@@ -181,11 +188,11 @@ namespace RecipeSystem.Controllers
                 return NotFound();
             }
             ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", recipe.CategoryID);
-            ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+            ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name", recipe.ComplexityId);
+            ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
             {
                 Value = i.Id.ToString(),
-                Text = i.Name,
-                Group = new SelectListGroup { Name = i.Measure?.Trim() }
+                Text = i.Name
             });
             return View(recipe);
         }
@@ -198,38 +205,47 @@ namespace RecipeSystem.Controllers
         {
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                    {
-                        Console.WriteLine($"Ошибка валидации: {error.ErrorMessage}");
-                    }
-                }
+                ModelState.Remove("PhotoFile");
                 if (ModelState.IsValid)
                 {
-
+                    Console.WriteLine("ModelState Is Valid");
+                    var prevRecipe = _recipeService.GetRecipe(id);
+                    if (prevRecipe == null)
+                    {
+                        return NotFound();
+                    }
+                    if (recipe.PhotoFile != null && recipe.PhotoFile.Length > 0)
+                    {
+                        using (var memoryStream = new MemoryStream())
+                        {
+                            recipe.PhotoFile.CopyTo(memoryStream);
+                            recipe.Photo = memoryStream.ToArray();
+                        }
+                    }
+                    else
+                    {
+                        recipe.Photo = prevRecipe.Photo;
+                    }
                     recipe.RecipeIngredients = recipeIngredients?
                         .Where(ri => ri.Quantity > 0 && ri.IngredientId > 0)
-                        .GroupBy(ri => ri.IngredientId) // Удаляем дубликаты по IngredientId
+                        .GroupBy(ri => ri.IngredientId)
                         .Select(g => g.First())
                         .ToList() ?? new List<RecipeIngredient>();
 
-            
                     recipe.Steps = steps?
-                        .Where(s => !string.IsNullOrEmpty(s.Description) && /*s.StepNumber > 0 &&*/ s.Time >= 0)
-                        //.OrderBy(s => s.StepNumber) 
+                        .Where(s => !string.IsNullOrEmpty(s.Description) && s.Time >= 0)
                         .ToList() ?? new List<RecipeStep>();
 
-                    recipe.Id = id; 
+                    recipe.Id = id;
                     _recipeService.EditRecipe(recipe);
                     return RedirectToAction(nameof(Index));
                 }
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", recipe.CategoryID);
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name", recipe.ComplexityId);
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
-                    Text = i.Name,
-                    Group = new SelectListGroup { Name = i.Measure?.Trim() }
+                    Text = i.Name
                 });
                 return View(recipe);
             }
@@ -237,7 +253,8 @@ namespace RecipeSystem.Controllers
             {
                 ModelState.AddModelError("", $"Ошибка при редактировании рецепта: {ex.Message}");
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", recipe.CategoryID);
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name", recipe.ComplexityId);
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
                     Text = i.Name,
@@ -268,45 +285,37 @@ namespace RecipeSystem.Controllers
             }
         }
 
-[Authorize]
-public ActionResult UserCreate()
-{
-    ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name");
-    ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name");
-    ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
-    {
-        Value = i.Id.ToString(),
-        Text = i.Name,
-        Group = new SelectListGroup { Name = i.Measure?.Trim() }
-    });
-    var model = new UserRecipe
-    {
-        RecipeIngredients = new List<UserRecipeIngredient> { new UserRecipeIngredient() },
-        Steps = new List<UserRecipeStep> { new UserRecipeStep() }
-    };
-    return View(model);
-}
+        [Authorize]
+        public ActionResult UserCreate()
+        {
+            ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name");
+            ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name");
+            ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
+            {
+                Value = i.Id.ToString(),
+                Text = i.Name
+            });
+            var model = new UserRecipe
+            {
+                RecipeIngredients = new List<UserRecipeIngredient> { new UserRecipeIngredient() },
+                Steps = new List<UserRecipeStep> { new UserRecipeStep() }
+            };
+            return View(model);
+        }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize]
-        public ActionResult UserCreate(UserRecipe userRecipe, List<UserRecipeIngredient> recipeIngredients, List<UserRecipeStep> steps)
+        public async Task<ActionResult> UserCreate(UserRecipe userRecipe, List<UserRecipeIngredient> recipeIngredients, List<UserRecipeStep> steps)
         {
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
 
-                if (!ModelState.IsValid)
-                {
-                    foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                    {
-                        Console.WriteLine($"Ошибка валидации: {error.ErrorMessage}");
-                    }
-                }
-
                 ModelState.Remove("User");
                 ModelState.Remove("Category");
                 ModelState.Remove("BaseRecipe");
+                ModelState.Remove("PhotoFile");
                 foreach (var key in ModelState.Keys.Where(k => k.Contains("RecipeIngredients") && k.Contains("UserRecipe")))
                 {
                     ModelState.Remove(key);
@@ -333,8 +342,25 @@ public ActionResult UserCreate()
                     }
                 }
 
+                if (userRecipe.PhotoFile != null && userRecipe.PhotoFile.Length > 0)
+                {
+                    if (!userRecipe.PhotoFile.ContentType.StartsWith("image/"))
+                    {
+                        ModelState.AddModelError("PhotoFile", "Загружайте изображения только в формате JPEG или PNG.");
+                    }
+                    else
+                    {
+                        using (var memoryStream = new MemoryStream())
+                        {
+                            await userRecipe.PhotoFile.CopyToAsync(memoryStream);
+                            userRecipe.Photo = memoryStream.ToArray();
+                        }
+                    }
+                }
+
                 if (ModelState.IsValid)
                 {
+                    Console.WriteLine("ModelState Is Valid");
                     userRecipe.UserId = userId;
                     userRecipe.BaseRecipeId = null;
 
@@ -345,17 +371,14 @@ public ActionResult UserCreate()
                         .Select(ri => new UserRecipeIngredient
                         {
                             IngredientId = ri.IngredientId,
-                            Quantity = ri.Quantity,
-                            Measure = ri.Measure ?? _recipeService.GetIngredients().FirstOrDefault(i => i.Id == ri.IngredientId)?.Measure ?? ""
+                            Quantity = ri.Quantity
                         })
                         .ToList() ?? new List<UserRecipeIngredient>();
 
                     userRecipe.Steps = steps?
-                        .Where(s => !string.IsNullOrEmpty(s.Description) && /*s.StepNumber > 0 &&*/ s.Time >= 0)
-                        //.OrderBy(s => s.StepNumber)
+                        .Where(s => !string.IsNullOrEmpty(s.Description) && s.Time >= 0)
                         .Select(s => new UserRecipeStep
                         {
-                            //StepNumber = s.StepNumber,
                             Description = s.Description,
                             Time = s.Time
                         })
@@ -366,8 +389,7 @@ public ActionResult UserCreate()
                 }
 
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", userRecipe.CategoryID);
-                
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
                     Text = i.Name,
@@ -379,15 +401,9 @@ public ActionResult UserCreate()
             }
             catch (Exception ex)
             {
-                userRecipe = userRecipe ?? new UserRecipe
-                {
-                    RecipeIngredients = new List<UserRecipeIngredient> { new UserRecipeIngredient() },
-                    Steps = new List<UserRecipeStep> { new UserRecipeStep() }
-                };
-
                 ModelState.AddModelError("", $"Ошибка при добавлении рецепта: {ex.Message}");
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", userRecipe.CategoryID);
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
                     Text = i.Name,
@@ -404,80 +420,68 @@ public ActionResult UserCreate()
         public ActionResult EditUserRecipe(int id)
         {
             int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-            var baseRecipe = _recipeService.GetRecipe(id);
-            if (baseRecipe == null)
+
+            var userRecipe = _recipeService.GetUserRecipes(userId).FirstOrDefault(ur => ur.Id == id);
+            if (userRecipe == null)
             {
-                return NotFound();
+                userRecipe = _recipeService.GetUserRecipe(userId, id);
+                if (userRecipe == null)
+                {
+                    var baseRecipe = _recipeService.GetRecipe(id);
+                    if (baseRecipe == null)
+                    {
+                        return NotFound();
+                    }
+                    userRecipe = new UserRecipe
+                    {
+                        UserId = userId,
+                        BaseRecipeId = id,
+                        Name = baseRecipe.Name,
+                        Description = baseRecipe.Description ?? "",
+                        CookingTime = baseRecipe.CookingTime,
+                        Servings = baseRecipe.Servings,
+                        CategoryID = baseRecipe.CategoryID,
+                        ComplexityId = baseRecipe.ComplexityId,
+                        Photo = baseRecipe.Photo,
+                        RecipeIngredients = baseRecipe.RecipeIngredients?.Select(ri => new UserRecipeIngredient
+                        {
+                            IngredientId = ri.IngredientId,
+                            Quantity = ri.Quantity,
+                        }).ToList(),
+                        Steps = baseRecipe.Steps?.Select(s => new UserRecipeStep
+                        {
+                            Description = s.Description,
+                            Time = s.Time
+                        }).ToList()
+                    };
+                }
             }
 
-            var userRecipe = _recipeService.GetUserRecipe(userId, id) ?? new UserRecipe
-            {
-                UserId = userId,
-                BaseRecipeId = id,
-                Name = baseRecipe.Name,
-                Description = baseRecipe.Description ?? "",
-                CookingTime = baseRecipe.CookingTime,
-                Servings = baseRecipe.Servings,
-                CategoryID = baseRecipe.CategoryID,
-                //Difficulty = baseRecipe.Difficulty ?? "",
-                ComplexityId = baseRecipe.ComplexityId,
-                Photo = baseRecipe.Photo,
-                RecipeIngredients = baseRecipe.RecipeIngredients?.Select(ri => new UserRecipeIngredient
-                {
-                    IngredientId = ri.IngredientId,
-                    Quantity = ri.Quantity,
-                    Measure = ri.Ingredient?.Measure
-                }).ToList(),
-                Steps = baseRecipe.Steps?.Select(s => new UserRecipeStep
-                {
-                    Description = s.Description,
-                    Time = s.Time
-                }).ToList()
-            };
-
             ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", userRecipe.CategoryID);
-            ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+            ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name", userRecipe.ComplexityId);
+            ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name)
+                .Select(i => new SelectListItem
             {
                 Value = i.Id.ToString(),
-                Text = i.Name,
-                Group = new SelectListGroup { Name = i.Measure?.Trim() }
-            });
+                Text = $"{i.Name} ({i.Measure?.Trim() ?? "шт"})"
+                });
 
-  
-            return View("UserEdit", userRecipe); 
+            return View("UserEdit", userRecipe);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize]
-        public ActionResult EditUserRecipe(int id, UserRecipe userRecipe, List<UserRecipeIngredient> recipeIngredients, List<UserRecipeStep> steps)
+        public async Task<ActionResult> EditUserRecipe(int id, UserRecipe userRecipe, List<UserRecipeIngredient> recipeIngredients, List<UserRecipeStep> steps)
         {
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-                // Логирование входных данных
-                Console.WriteLine($"Received UserRecipe: Id={userRecipe.Id}, Name={userRecipe.Name}, UserId={userRecipe.UserId}, BaseRecipeId={userRecipe.BaseRecipeId}");
-                Console.WriteLine($"Ingredients received: {recipeIngredients?.Count ?? 0}");
-                if (recipeIngredients != null)
-                {
-                    for (int i = 0; i < recipeIngredients.Count; i++)
-                    {
-                        Console.WriteLine($"Ingredient[{i}]: Id={recipeIngredients[i].IngredientId}, Quantity={recipeIngredients[i].Quantity}, Measure={recipeIngredients[i].Measure}");
-                    }
-                }
-                Console.WriteLine($"Steps received: {steps?.Count ?? 0}");
-                if (steps != null)
-                {
-                    for (int i = 0; i < steps.Count; i++)
-                    {
-                        Console.WriteLine($"Step[{i}]: Id={steps[i].Id}, Description={steps[i].Description}, Time={steps[i].Time}");
-                    }
-                }
 
-                // Удаляем ошибки валидации для навигационных свойств
                 ModelState.Remove("User");
                 ModelState.Remove("Category");
                 ModelState.Remove("BaseRecipe");
+                ModelState.Remove("PhotoFile");
                 foreach (var key in ModelState.Keys.Where(k => k.Contains("recipeIngredients") && k.Contains("UserRecipe")))
                 {
                     ModelState.Remove(key);
@@ -490,6 +494,7 @@ public ActionResult UserCreate()
                 {
                     ModelState.Remove(key);
                 }
+
                 if (recipeIngredients != null)
                 {
                     var duplicate = recipeIngredients
@@ -503,12 +508,46 @@ public ActionResult UserCreate()
                     }
                 }
 
+                // Поиск существующего пользовательского рецепта
+                var prevRecipe = _recipeService.GetUserRecipes(userId).FirstOrDefault(ur => ur.Id == id);
+                if (prevRecipe == null)
+                {
+                    prevRecipe = _recipeService.GetUserRecipe(userId, id);
+                }
+
+                var baseRecipe = prevRecipe == null ? _recipeService.GetRecipe(id) : null;
+                if (prevRecipe == null && baseRecipe == null)
+                {
+                    return NotFound();
+                }
+
+                // Обработка фото
+                if (userRecipe.PhotoFile != null && userRecipe.PhotoFile.Length > 0)
+                {
+                    if (!userRecipe.PhotoFile.ContentType.StartsWith("image/"))
+                    {
+                        ModelState.AddModelError("PhotoFile", "Загрузите изображение в формате JPEG или PNG.");
+                    }
+                    else
+                    {
+                        using (var memoryStream = new MemoryStream())
+                        {
+                            await userRecipe.PhotoFile.CopyToAsync(memoryStream);
+                            userRecipe.Photo = memoryStream.ToArray();
+                        }
+                    }
+                }
+                else
+                {
+                    userRecipe.Photo = prevRecipe?.Photo ?? baseRecipe?.Photo;                 
+                }
+
                 if (ModelState.IsValid)
                 {
+                    Console.WriteLine("ModelState Is Valid");
                     userRecipe.UserId = userId;
-                    userRecipe.BaseRecipeId = id;
+                    userRecipe.BaseRecipeId = prevRecipe?.BaseRecipeId ?? baseRecipe?.Id;
 
-  
                     userRecipe.RecipeIngredients = recipeIngredients?
                         .Where(ri => ri.Quantity > 0 && ri.IngredientId > 0)
                         .GroupBy(ri => ri.IngredientId)
@@ -516,43 +555,36 @@ public ActionResult UserCreate()
                         .Select(ri => new UserRecipeIngredient
                         {
                             IngredientId = ri.IngredientId,
-                            Quantity = ri.Quantity,
-                            Measure = ri.Measure ?? _recipeService.GetIngredients().FirstOrDefault(i => i.Id == ri.IngredientId)?.Measure
+                            Quantity = ri.Quantity
                         })
                         .ToList() ?? new List<UserRecipeIngredient>();
 
                     userRecipe.Steps = steps?
-                        .Where(s => !string.IsNullOrEmpty(s.Description) && /*s.StepNumber > 0 &&*/ s.Time >= 0)
-                        //.OrderBy(s => s.StepNumber)
+                        .Where(s => !string.IsNullOrEmpty(s.Description) && s.Time >= 0)
                         .Select(s => new UserRecipeStep
                         {
-                            //StepNumber = s.StepNumber,
                             Description = s.Description,
                             Time = s.Time
                         })
                         .ToList() ?? new List<UserRecipeStep>();
 
-                    var prevRecipe = _recipeService.GetUserRecipe(userId, id);
                     if (prevRecipe != null)
                     {
+                        Console.WriteLine($"Редактирование рецепта с Id: {prevRecipe.Id}");
                         _recipeService.EditUserRecipe(prevRecipe.Id, userRecipe);
                     }
                     else
                     {
+                        Console.WriteLine("Создание нового рецепта");
                         userRecipe.Id = 0;
                         _recipeService.AddUserRecipe(userRecipe);
                     }
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction(nameof(Profile));
                 }
-                else
-                {
-                    foreach (var error in ModelState.Values.SelectMany(v => v.Errors))
-                    {
-                        Console.WriteLine($"Validation error: {error.ErrorMessage}");
-                    }
-                }
+
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", userRecipe.CategoryID);
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name", userRecipe.ComplexityId);
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
                     Text = i.Name,
@@ -562,14 +594,10 @@ public ActionResult UserCreate()
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error editing user recipe: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
-                }
                 ModelState.AddModelError("", $"Ошибка при редактировании рецепта: {ex.Message}");
                 ViewBag.Categories = new SelectList(_recipeService.GetCategories(), "Id", "Name", userRecipe.CategoryID);
-                ViewBag.Ingredients = _recipeService.GetIngredients().Select(i => new SelectListItem
+                ViewBag.Complexity = new SelectList(_recipeService.GetComplexity(), "Id", "Name", userRecipe.ComplexityId);
+                ViewBag.Ingredients = _recipeService.GetIngredients().OrderBy(i => i.Name).Select(i => new SelectListItem
                 {
                     Value = i.Id.ToString(),
                     Text = i.Name,
@@ -588,12 +616,35 @@ public ActionResult UserCreate()
             try
             {
                 int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-                var userRecipe = _recipeService.GetUserRecipe(userId, id);
-                if (userRecipe == null)
+                var recipe = _recipeService.GetUserRecipes(userId).FirstOrDefault(ur => ur.BaseRecipeId == id || (ur.Id == id && ur.UserId == userId));
+                if (recipe != null)
                 {
-                    return NotFound();
+                    recipe.IsDeleted = true;
+                    _recipeService.EditUserRecipe(recipe.Id, recipe);
                 }
-                _recipeService.RemoveUserRecipe(userRecipe.Id, userId);
+                else
+                {
+                    var baseRecipe = _recipeService.GetRecipe(id);
+                    if (baseRecipe == null)
+                    {
+                        TempData["ErrorMessage"] = "Рецепт не найден.";
+                        return RedirectToAction(nameof(Index));
+                    }
+
+                    recipe = new UserRecipe
+                    {
+                        UserId = userId,
+                        BaseRecipeId = id,
+                        Name = baseRecipe.Name,
+                        IsDeleted = true,
+                        CategoryID = baseRecipe.CategoryID,
+                        ComplexityId = baseRecipe.ComplexityId,
+                        CookingTime = baseRecipe.CookingTime,
+                        Servings = baseRecipe.Servings
+                    };
+                    _recipeService.AddUserRecipe(recipe);
+                }
+
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
@@ -653,13 +704,52 @@ public ActionResult UserCreate()
                 : 0;
 
             var recipes = _recipeService.Search(query, categoryId, sortOrder);
-            var userRecipes = userId != 0 ? _recipeService.UserSearch(userId, query, categoryId, sortOrder) : new List<UserRecipe>();
 
+            if (userId != 0)
+            {
+                var userRecipes = _recipeService.UserSearch(userId, query, categoryId, sortOrder);
+
+                // BaseRecipeId удалённых рецептов
+                var deletedRecipes = _recipeService.GetDeletedId(userId)
+                    .Where(id => id.HasValue)
+                    .Select(id => id.Value)
+                    .ToList();
+
+                recipes = recipes.Where(r => !deletedRecipes.Contains(r.Id)).ToList();
+
+                foreach (var userRecipe in userRecipes)
+                {
+                    recipes.RemoveAll(r => r.Id == userRecipe.BaseRecipeId);
+                    recipes.Add(new Recipe
+                    {
+                        Id = userRecipe.BaseRecipeId ?? userRecipe.Id,
+                        Name = userRecipe.Name,
+                        Description = userRecipe.Description,
+                        CookingTime = userRecipe.CookingTime,
+                        Servings = userRecipe.Servings,
+                        CategoryID = userRecipe.CategoryID,
+                        ComplexityId = userRecipe.ComplexityId,
+                        Photo = userRecipe.Photo,
+                        RecipeIngredients = userRecipe.RecipeIngredients?.Select(ri => new RecipeIngredient
+                        {
+                            IngredientId = ri.IngredientId,
+                            Quantity = ri.Quantity,
+                            Ingredient = ri.Ingredient
+                        }).ToList(),
+                        Steps = userRecipe.Steps?.Select(s => new RecipeStep
+                        {
+                            Description = s.Description,
+                            Time = s.Time
+                        }).ToList(),
+                        Category = userRecipe.Category,
+                        Complexity = userRecipe.Complexity
+                    });
+                }
+            }
             var model = new SearchVm
             {
                 Query = query,
                 Recipes = recipes,
-                UserRecipes = userRecipes,
                 Categories = _recipeService.GetCategories().Select(c => new SelectListItem
                 {
                     Value = c.Id.ToString(),
@@ -670,7 +760,7 @@ public ActionResult UserCreate()
                 SortOrder = sortOrder
             };
 
-            model.Categories.Insert(0, new SelectListItem 
+            model.Categories.Insert(0, new SelectListItem
             {
                 Value = "",
                 Text = "Все категории",
@@ -679,7 +769,6 @@ public ActionResult UserCreate()
 
             return View(model);
         }
-
 
         public IActionResult DownloadDocx(int id)
         {
@@ -749,7 +838,7 @@ public ActionResult UserCreate()
                         foreach (var step in recipe.Steps/*.OrderBy(s => s.StepNumber)*/)
                         {
                             Paragraph stepPara = body.AppendChild(new Paragraph());
-                            stepPara.AppendChild(new Run(new Text($"{stepNumber} {step.Description} (Время: {step.Time} мин)")));
+                            stepPara.AppendChild(new Run(new Text($"{stepNumber} {step.Description} ( {step.Time} мин)")));
                             stepNumber++;
                         }
                     }

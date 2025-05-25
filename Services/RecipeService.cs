@@ -113,5 +113,9 @@ namespace RecipeSystem.Services
         {
             return _recipeRepository.GetFavoriteRecipes(userId);
         }
+        public List<int?> GetDeletedId(int userId)
+        {
+            return _recipeRepository.GetDeletedId(userId);
+        }
     }
 }

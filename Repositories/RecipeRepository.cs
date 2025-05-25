@@ -45,7 +45,11 @@ namespace RecipeSystem.Repositories
             if (!string.IsNullOrWhiteSpace(query))
             {
                 query = query.ToLower().Trim();
-                recipes = recipes.Where(r => r.Name.ToLower().Contains(query) || (r.Description != null && r.Description.ToLower().Contains(query)));
+                recipes = recipes.Where(r =>
+                    r.Name.ToLower().Contains(query) ||
+                    (r.Description != null && r.Description.ToLower().Contains(query)) ||
+                    r.RecipeIngredients.Any(ri => ri.Ingredient != null && ri.Ingredient.Name.ToLower().Contains(query))
+                );
             }
 
             if (categoryId.HasValue)
@@ -69,13 +73,17 @@ namespace RecipeSystem.Repositories
                 .Include(ur => ur.Category)
                 .Include(ur => ur.RecipeIngredients).ThenInclude(uri => uri.Ingredient)
                 .Include(ur => ur.Steps)
-                .Where(ur => ur.UserId == userId)
+                .Where(ur => ur.UserId == userId && !ur.IsDeleted)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(query))
             {
                 query = query.ToLower().Trim();
-                userRecipes = userRecipes.Where(ur => ur.Name.ToLower().Contains(query) || (ur.Description != null && ur.Description.ToLower().Contains(query)));
+                userRecipes = userRecipes.Where(ur =>
+                    ur.Name.ToLower().Contains(query) ||
+                    (ur.Description != null && ur.Description.ToLower().Contains(query)) ||
+                    ur.RecipeIngredients.Any(ri => ri.Ingredient != null && ri.Ingredient.Name.ToLower().Contains(query))
+                );
             }
 
             if (categoryId.HasValue)
@@ -118,42 +126,46 @@ namespace RecipeSystem.Repositories
 
         public void EditRecipe(Recipe recipe)
         {
-            if (recipe == null)
-                throw new ArgumentNullException(nameof(recipe));
-
             var prevRecipe = _context.Recipes
                 .Include(r => r.RecipeIngredients)
                 .Include(r => r.Steps)
                 .SingleOrDefault(r => r.Id == recipe.Id);
 
             if (prevRecipe == null)
-                throw new KeyNotFoundException($"Рецепт с ID {recipe.Id} не найден.");
-
-            // Обновляем основные поля
-            prevRecipe.Name = recipe.Name;
-            prevRecipe.Description = recipe.Description;
-            prevRecipe.CookingTime = recipe.CookingTime;
-            prevRecipe.Servings = recipe.Servings;
-            prevRecipe.CategoryID = recipe.CategoryID;
-            //prevRecipe.Difficulty = recipe.Difficulty;
-            prevRecipe.ComplexityId = recipe.ComplexityId;
-            prevRecipe.Photo = recipe.Photo;
-
-            _context.RecipeIngredients.RemoveRange(prevRecipe.RecipeIngredients);
-            prevRecipe.RecipeIngredients = recipe.RecipeIngredients?.Select(ri => new RecipeIngredient
             {
-                RecipeId = recipe.Id,
-                IngredientId = ri.IngredientId,
-                Quantity = ri.Quantity
-            }).ToList() ?? new List<RecipeIngredient>();
-            _context.RecipeSteps.RemoveRange(prevRecipe.Steps);
+                throw new Exception("Рецепт не найден");
+            }
 
-            prevRecipe.Steps = recipe.Steps?.Select(s => new RecipeStep
+            _context.Entry(prevRecipe).CurrentValues.SetValues(recipe);
+
+            prevRecipe.RecipeIngredients.Clear();
+            foreach (var ri in recipe.RecipeIngredients ?? new List<RecipeIngredient>())
             {
-                RecipeId = recipe.Id,
-                Description = s.Description,
-                Time = s.Time
-            }).ToList() ?? new List<RecipeStep>();
+                if (ri.IngredientId > 0 && ri.Quantity > 0)
+                {
+                    prevRecipe.RecipeIngredients.Add(new RecipeIngredient
+                    {
+                        RecipeId = recipe.Id,
+                        IngredientId = ri.IngredientId,
+                        Quantity = ri.Quantity
+                    });
+                }
+            }
+
+
+            prevRecipe.Steps.Clear();
+            foreach (var step in recipe.Steps ?? new List<RecipeStep>())
+            {
+                if (!string.IsNullOrEmpty(step.Description))
+                {
+                    prevRecipe.Steps.Add(new RecipeStep
+                    {
+                        RecipeId = recipe.Id,
+                        Description = step.Description,
+                        Time = step.Time
+                    });
+                }
+            }
 
             _context.SaveChanges();
         }
@@ -180,13 +192,19 @@ namespace RecipeSystem.Repositories
 
         public List<UserRecipe> GetUserRecipes(int userId)
         {
-            return _context.UserRecipes
+            var recipes = _context.UserRecipes
                 .Include(ur => ur.Category)
                 .Include(ur => ur.RecipeIngredients)
                 .ThenInclude(uri => uri.Ingredient)
                 .Include(ur => ur.Steps)
-                .Where(ur => ur.UserId == userId)
+                .Where(ur => ur.UserId == userId && !ur.IsDeleted) // Исключаем удалённые
                 .ToList();
+            Console.WriteLine($"Найдено пользовательских рецептов для UserId={userId}: {recipes.Count}");
+            foreach (var r in recipes)
+            {
+                Console.WriteLine($"UserRecipe: Id={r.Id}, BaseRecipeId={r.BaseRecipeId}, Name={r.Name}, IsDeleted={r.IsDeleted}");
+            }
+            return recipes;
         }
 
         public void AddUserRecipe(UserRecipe userRecipe)
@@ -194,27 +212,8 @@ namespace RecipeSystem.Repositories
             if (userRecipe == null)
                 throw new ArgumentNullException(nameof(userRecipe));
 
-            if (_context.UserRecipes.Any(ur => ur.UserId == userRecipe.UserId && ur.BaseRecipeId == userRecipe.BaseRecipeId))
-                throw new InvalidOperationException("Пользователь уже имеет свою версию этого рецепта.");
-
-
-            Console.WriteLine($"Adding UserRecipe: UserId={userRecipe.UserId}, BaseRecipeId={userRecipe.BaseRecipeId}, Name={userRecipe.Name}");
-            Console.WriteLine($"Ingredients to add: {userRecipe.RecipeIngredients?.Count ?? 0}");
-            if (userRecipe.RecipeIngredients != null)
-            {
-                foreach (var ingredient in userRecipe.RecipeIngredients)
-                {
-                    Console.WriteLine($"Ingredient: IngredientId={ingredient.IngredientId}, Quantity={ingredient.Quantity}, Measure={ingredient.Measure}");
-                }
-            }
-            Console.WriteLine($"Steps to add: {userRecipe.Steps?.Count ?? 0}");
-            if (userRecipe.Steps != null)
-            {
-                foreach (var step in userRecipe.Steps)
-                {
-                    Console.WriteLine($"Step: Id={step.Id}, Description={step.Description}, Time={step.Time}");
-                }
-            }
+            if (_context.UserRecipes.Any(ur => ur.UserId == userRecipe.UserId && ur.Name == userRecipe.Name))
+                throw new InvalidOperationException($"Уже есть рецепт с названием «{userRecipe.Name}».");
 
             if (userRecipe.RecipeIngredients != null)
             {
@@ -228,7 +227,6 @@ namespace RecipeSystem.Repositories
                     throw new InvalidOperationException($"Обнаружены дублирующиеся IngredientId: {string.Join(", ", duplicateIngredients)}");
                 }
             }
-
   
             if (userRecipe.Steps != null)
             {
@@ -248,7 +246,6 @@ namespace RecipeSystem.Repositories
             }
 
             _context.UserRecipes.Add(userRecipe);
-            _context.SaveChanges(); 
             _context.SaveChanges();
         }
 
@@ -270,7 +267,6 @@ namespace RecipeSystem.Repositories
             prevUserRecipe.CookingTime = userRecipe.CookingTime;
             prevUserRecipe.Servings = userRecipe.Servings;
             prevUserRecipe.CategoryID = userRecipe.CategoryID;
-            //prevUserRecipe.Difficulty = userRecipe.Difficulty;
             prevUserRecipe.ComplexityId = userRecipe.ComplexityId;
             prevUserRecipe.Photo = userRecipe.Photo;
             prevUserRecipe.BaseRecipeId = userRecipe.BaseRecipeId;
@@ -290,7 +286,6 @@ namespace RecipeSystem.Repositories
             prevUserRecipe.Steps = userRecipe.Steps?.Select(s => new UserRecipeStep
             {
                 UserRecipeId = id,
-                //StepNumber = s.StepNumber,
                 Description = s.Description,
                 Time = s.Time
             }).ToList() ?? new List<UserRecipeStep>();
@@ -319,10 +314,7 @@ namespace RecipeSystem.Repositories
         {
             return _context.Ingredients.ToList();
         }
-        //public List<Complexity> GetComplexity()
-        //{
-        //    return _context.Complexity.ToList();
-        //}
+
         public List<Complexity> GetComplexity()
         {
             var complexities = _context.Complexity.ToList();
@@ -353,6 +345,14 @@ namespace RecipeSystem.Repositories
                     (fr, r) => r)
                 .Include(r => r.Category)
                 .ToList();
+        }
+        public List<int?> GetDeletedId(int userId)
+        {
+            var deleted = _context.UserRecipes
+                .Where(ur => ur.UserId == userId && ur.IsDeleted)
+                .Select(ur => ur.BaseRecipeId)
+                .ToList();
+            return deleted;
         }
     }
 }

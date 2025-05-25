@@ -31,20 +31,20 @@ namespace RecipeSystem.Models
         public Complexity? Complexity { get; set; }
 
         [BindNever]
-        public byte[]? Photo { get; set; } // nullable
+        public byte[]? Photo { get; set; }
+        [NotMapped]
+        public IFormFile PhotoFile { get; set; } // Для загрузки файла
+        [BindNever]
+        public List<RecipeIngredient>? RecipeIngredients { get; set; }
 
         [BindNever]
-        public List<RecipeIngredient>? RecipeIngredients { get; set; } // nullable
-
-        [BindNever]
-        public List<RecipeStep>? Steps { get; set; } // nullable
+        public List<RecipeStep>? Steps { get; set; } 
         [BindNever]
         public Category? Category { get; set; }
         [BindNever]
         public List<FavoriteRecipe>? FavoriteRecipes { get; set; }
         [BindNever]
-        public List<UserRecipe>? UserRecipes { get; set; } // Список персональных версий
-
+        public List<UserRecipe>? UserRecipes { get; set; } 
 
         public Recipe() { }
         public Recipe(int id, string name, string? description)
@@ -65,7 +65,5 @@ namespace RecipeSystem.Models
         [Required(ErrorMessage = "Укажите количество")]
         [Range(0.01, double.MaxValue, ErrorMessage = "Количество должно быть больше 0")]
         public decimal Quantity { get; set; }
-        //[StringLength(20, ErrorMessage = "Единица измерения не должна превышать 20 символов")]
-        //public string? Measure { get; set; }
     }
 }

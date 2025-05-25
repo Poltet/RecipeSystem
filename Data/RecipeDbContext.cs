@@ -32,15 +32,12 @@ namespace RecipeSystem.Data
                 entity.Property(r => r.CookingTime).IsRequired();
                 entity.Property(r => r.Servings).IsRequired();
                 entity.Property(r => r.CategoryID).IsRequired().HasColumnName("CategoryId"); // Явно указываем имя столбца
-                //entity.Property(r => r.Difficulty).HasMaxLength(50);
                 entity.HasOne(r => r.Category)
                       .WithMany(c => c.Recipes)
                       .HasForeignKey(r => r.CategoryID);
-                //.HasConstraintName("FK_Recipes_Categories_CategoryId");
-                entity.HasOne(r => r.Complexity) // связь с Complexity
+                entity.HasOne(r => r.Complexity) 
                       .WithMany(c => c.Recipes)
                       .HasForeignKey(r => r.ComplexityId);
-                      //.HasConstraintName("FK_Recipes_Complexities_ComplexityId");
             });
 
             modelBuilder.Entity<Category>(entity =>
@@ -67,7 +64,6 @@ namespace RecipeSystem.Data
             modelBuilder.Entity<RecipeStep>(entity =>
             {
                 entity.HasKey(rs => rs.Id);
-                //entity.Property(rs => rs.StepNumber).IsRequired();
                 entity.Property(rs => rs.Description).IsRequired().HasMaxLength(255);
                 entity.Property(rs => rs.Time).IsRequired();
                 entity.HasOne(rs => rs.Recipe).WithMany(r => r.Steps).HasForeignKey(rs => rs.RecipeId);
@@ -91,7 +87,6 @@ namespace RecipeSystem.Data
                 entity.Property(ur => ur.CookingTime).IsRequired();
                 entity.Property(ur => ur.Servings).IsRequired();
                 entity.Property(ur => ur.CategoryID).IsRequired().HasColumnName("CategoryId");
-                //entity.Property(ur => ur.Difficulty).HasMaxLength(20);
                 entity.HasOne(ur => ur.User).WithMany().HasForeignKey(ur => ur.UserId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(ur => ur.BaseRecipe).WithMany(r => r.UserRecipes).HasForeignKey(ur => ur.BaseRecipeId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(ur => ur.BaseRecipe).WithMany(r => r.UserRecipes).HasForeignKey(ur => ur.BaseRecipeId);
@@ -112,7 +107,6 @@ namespace RecipeSystem.Data
             {
                 entity.HasKey(urs => urs.Id);
                 entity.Property(urs => urs.UserRecipeId).IsRequired();
-                //entity.Property(urs => urs.StepNumber).IsRequired();
                 entity.Property(urs => urs.Description).IsRequired().HasMaxLength(255);
                 entity.Property(urs => urs.Time).IsRequired();
                 entity.HasOne(urs => urs.UserRecipe).WithMany(ur => ur.Steps).HasForeignKey(urs => urs.UserRecipeId);

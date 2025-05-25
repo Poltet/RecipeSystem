@@ -41,9 +41,9 @@
                 <span asp-validation-for="ComplexityId" class="text-danger"></span>
             </div>
             <div class="form-group">
-                <label asp-for="Photo" class="control-label">Фото блюда</label>
-                <input asp-for="Photo" type="file" accept="image/jpeg,image/png" class="form-control" />
-                <span asp-validation-for="Photo" class="text-danger"></span>
+                <label asp-for="PhotoFile" class="control-label">Фото</label>
+                <input asp-for="PhotoFile" type="file" accept="image/jpeg,image/png" class="form-control" data-val="false" />
+                <span asp-validation-for="PhotoFile" class="text-danger"></span>
             </div>
 
             <div id="ingredients-container">

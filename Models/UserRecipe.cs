@@ -38,12 +38,15 @@ namespace RecipeSystem.Models
 
         [BindNever]
         public byte[]? Photo { get; set; }
+        [NotMapped]
+        public IFormFile PhotoFile { get; set; } // Для загрузки файла
 
         [BindNever]
         public List<UserRecipeIngredient>? RecipeIngredients { get; set; }
 
         [BindNever]
         public List<UserRecipeStep>? Steps { get; set; }
+        public bool IsDeleted { get; set; }
     }
 
     public class UserRecipeIngredient

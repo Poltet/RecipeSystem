@@ -11,6 +11,6 @@ namespace RecipeSystem.ViewModels
         public List<UserRecipe> UserRecipes { get; set; }
         public List<SelectListItem> Categories { get; set; }
         public int? SelectedCategoryId { get; set; }
-        public string SortOrder { get; set; } // "asc" или "desc"
+        public string SortOrder { get; set; } // asc или desc
     }
 }

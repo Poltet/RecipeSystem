@@ -47,7 +47,7 @@
                 <ol>
                     @foreach (var step in Model.Steps ?? new List<RecipeStep>())
                     {
-                        <li>@step.Description (Время: @step.Time мин)</li>
+                        <li>@step.Description ( @step.Time мин)</li>
                     }
                 </ol>
             </dd>

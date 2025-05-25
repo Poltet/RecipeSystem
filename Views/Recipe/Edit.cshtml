@@ -38,15 +38,19 @@
                 <span asp-validation-for="CategoryID" class="text-danger"></span>
             </div>
             <div class="form-group">
-                <label asp-for="Photo" class="control-label">Фото блюда</label>
-                <input asp-for="Photo" type="file" accept="image/jpeg,image/png" class="form-control" />
+                <label asp-for="ComplexityId" class="control-label">Сложность</label>
+                <select asp-for="ComplexityId" class="form-control" asp-items="ViewBag.Complexity"></select>
+                <span asp-validation-for="ComplexityId" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="PhotoFile" class="control-label">Фото</label>
                 @if (Model.Photo != null)
                 {
-                    <img src="data:image/jpeg;base64,@Convert.ToBase64String(Model.Photo)" alt="Фото" style="max-width: 200px;" />
+                    <img src="data:image/jpeg;base64,@Convert.ToBase64String(Model.Photo)" alt="Текущее фото" style="max-width: 200px; margin-bottom: 10px;" />
                 }
-                <span asp-validation-for="Photo" class="text-danger"></span>
+                <input asp-for="PhotoFile" type="file" accept="image/jpeg,image/png" class="form-control" data-val="false" />
+                <span asp-validation-for="PhotoFile" class="text-danger"></span>
             </div>
-
             <div id="ingredients-container">
                 <h4>Ингредиенты</h4>
                 @{
@@ -56,16 +60,11 @@
                         <div class="ingredient-row">
                             <div class="form-group">
                                 <label>Ингредиент</label>
-                                <select name="RecipeIngredients[0].IngredientId" class="form-control ingredient-select" asp-items="ViewBag.Ingredients" onchange="updateMeasure(this, 0)"></select>
+                                <select name="RecipeIngredients[0].IngredientId" class="form-control ingredient-select" asp-items="ViewBag.Ingredients"></select>
                             </div>
                             <div class="form-group">
-                                <label>Количество</label>
+                                <label class="measure-label">Количество</label>
                                 <input name="RecipeIngredients[0].Quantity" type="number" class="form-control" min="0.01" step="0.01" value="1" />
-                            </div>
-                            <div class="form-group" style="display:none;">
-                                <label>Единица измерения</label>
-                                <span class="measure-display" data-index="0"></span>
-                                <input name="RecipeIngredients[0].Measure" type="hidden" class="measure-input" />
                             </div>
                         </div>
                     }
@@ -76,18 +75,11 @@
                             <div class="ingredient-row">
                                 <div class="form-group">
                                     <label>Ингредиент</label>
-                                    <select name="RecipeIngredients[@i].IngredientId" class="form-control ingredient-select" asp-items="ViewBag.Ingredients" onchange="updateMeasure(this, @i)">
-                                        <option value="@Model.RecipeIngredients[i].IngredientId" selected>@Model.RecipeIngredients[i].Ingredient.Name</option>
-                                    </select>
+                                    <select name="RecipeIngredients[@i].IngredientId" class="form-control ingredient-select" asp-items="ViewBag.Ingredients" asp-for="RecipeIngredients[i].IngredientId"></select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Количество</label>
-                                    <input name="RecipeIngredients[@i].Quantity" type="number" class="form-control" min="0.01" step="0.01" value="@Model.RecipeIngredients[i].Quantity" />
-                                </div>
-                                <div class="form-group" style="display:none;">
-                                    <label>Единица измерения</label>
-                                    <span class="measure-display" data-index="@i">@Model.RecipeIngredients[i].Ingredient.Measure</span>
-                                    <input name="RecipeIngredients[@i].Measure" type="hidden" class="measure-input" value="@Model.RecipeIngredients[i].Ingredient.Measure" />
+                                    <label class="measure-label">Количество</label>
+                                    <input name="RecipeIngredients[@i].Quantity" type="number" class="form-control" min="0.01" step="0.01" asp-for="RecipeIngredients[i].Quantity" />
                                 </div>
                                 @if (i > 0)
                                 {
@@ -175,19 +167,21 @@
             let ingredientIndex = @(Model?.RecipeIngredients?.Count ?? 1);
             let stepIndex = @(Model?.Steps?.Count ?? 1);
 
+            const container = document.getElementById('ingredients-container');
+            let ingredientRowTemplate = container.querySelector('.ingredient-row').cloneNode(true);
+
             document.querySelector('.add-ingredient').addEventListener('click', function () {
-                const container = document.getElementById('ingredients-container');
-                const newRow = container.querySelector('.ingredient-row').cloneNode(true);
+                const newRow = ingredientRowTemplate.cloneNode(true);
                 newRow.querySelectorAll('input, select').forEach(input => {
                     const name = input.name.replace(/\[\d+\]/, '[' + ingredientIndex + ']');
                     input.name = name;
                     if (input.type === 'number') input.value = '1';
                     else if (input.type !== 'file') input.value = '';
                 });
-                const measureDisplay = newRow.querySelectorAll('.measure-display')[0];
+                const measureDisplay = newRow.querySelectorAll('.measure-display')[0] || document.createElement('span');
                 measureDisplay.setAttribute('data-index', ingredientIndex);
                 measureDisplay.textContent = '';
-                const measureInput = newRow.querySelector('.measure-input');
+                const measureInput = newRow.querySelector('.measure-input') || document.createElement('input');
                 measureInput.value = '';
                 const selectElement = newRow.querySelector('.ingredient-select');
                 selectElement.setAttribute('onchange', `updateMeasure(this, ${ingredientIndex})`);
@@ -199,7 +193,27 @@
 
             document.addEventListener('click', function (e) {
                 if (e.target.classList.contains('remove-ingredient')) {
-                    e.target.parentElement.remove();
+                    const row = e.target.parentElement;
+                    row.remove();
+                    if (!container.querySelector('.ingredient-row')) {
+                        const newRow = ingredientRowTemplate.cloneNode(true);
+                        newRow.querySelectorAll('input, select').forEach(input => {
+                            const name = input.name.replace(/\[\d+\]/, '[' + ingredientIndex + ']');
+                            input.name = name;
+                            if (input.type === 'number') input.value = '1';
+                            else if (input.type !== 'file') input.value = '';
+                        });
+                        const measureDisplay = newRow.querySelectorAll('.measure-display')[0] || document.createElement('span');
+                        measureDisplay.setAttribute('data-index', ingredientIndex);
+                        measureDisplay.textContent = '';
+                        const measureInput = newRow.querySelector('.measure-input') || document.createElement('input');
+                        measureInput.value = '';
+                        const selectElement = newRow.querySelector('.ingredient-select');
+                        selectElement.setAttribute('onchange', `updateMeasure(this, ${ingredientIndex})`);
+                        newRow.querySelector('.remove-ingredient')?.remove();
+                        container.appendChild(newRow);
+                        ingredientIndex++;
+                    }
                 }
             });
 

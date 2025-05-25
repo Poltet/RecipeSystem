@@ -16,6 +16,6 @@ namespace RecipeSystem.Models
         [Range(0, int.MaxValue, ErrorMessage = "Время выполнения не может быть отрицательным")]
         public int Time { get; set; }
 
-        public Recipe? Recipe { get; set; } // Навигационное свойство
+        public Recipe? Recipe { get; set; }
     }
 }

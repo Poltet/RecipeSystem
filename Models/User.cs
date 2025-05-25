@@ -6,8 +6,6 @@
         public string Name { get; set; }
         public string PasswordHash { get; set; } 
         public bool IsAdmin { get; set; } 
-       // public List<FavoriteRecipe> FavoriteRecipes { get; set; }
-        //public List<UserRecipe>? UserRecipes { get; set; }
     }
 
     public class FavoriteRecipe
