@@ -25,8 +25,8 @@
                     <div class="card-body">
                         <h5 class="card-title">@recipe.Name</h5>
                         <p class="card-text">@recipe.Description</p>
-                        <div class="btn-group" role="group">
-                            <a asp-action="Details" asp-controller="Recipe" asp-route-id="@recipe.Id" class="btn btn-primary btn-sm">Смотреть</a>
+                        <div class="btn-grid" role="group">
+                            <a asp-action="Details" asp-controller="Recipe" asp-route-id="@recipe.Id" class="btn btn-primary btn-sm">Открыть</a>
                             @if (User.Identity.IsAuthenticated)
                             {
                                 if (User.IsInRole("Admin"))
@@ -45,11 +45,11 @@
                                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Вы уверены?')">Удалить</button>
                                     </form>
                                 }
+                                <form asp-action="RemoveFromFavorites" asp-controller="Recipe" method="post">
+                                    <input type="hidden" name="recipeId" value="@recipe.Id" />
+                                    <button type="submit" class="btn btn-success btn-sm" style="opacity: 0.6;">Удалить из избранного</button>
+                                </form>
                             }
-                            <form asp-action="AddToFavorites" asp-controller="Recipe" method="post">
-                                <input type="hidden" name="recipeId" value="@recipe.Id" />
-                                <button type="submit" class="btn btn-success btn-sm" disabled>В избранном</button>
-                            </form>
                         </div>
                     </div>
                 </div>

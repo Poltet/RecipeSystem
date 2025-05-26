@@ -673,13 +673,33 @@ namespace RecipeSystem.Controllers
                 _recipeService.AddFavorite(favorite);
                 return RedirectToAction(nameof(Index));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                ModelState.AddModelError("", $"Ошибка при добавлении в избранное: {ex.Message}");
                 return RedirectToAction(nameof(Index));
             }
         }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize]
+        public ActionResult RemoveFromFavorites(int recipeId)
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim))
+                {
+                    return Unauthorized();
+                }
 
+                int userId = int.Parse(userIdClaim);
+                _recipeService.RemoveFavorite(userId, recipeId);
+                return RedirectToAction(nameof(Favorites));
+            }
+            catch (Exception)
+            {
+                return RedirectToAction(nameof(Favorites));
+            }
+        }
         [Authorize]
         public ActionResult Favorites()
         {

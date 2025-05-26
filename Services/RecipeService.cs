@@ -108,7 +108,10 @@ namespace RecipeSystem.Services
         {
             _recipeRepository.AddFavorite(favorite);
         }
-
+        public void RemoveFavorite(int userId, int recipeId)
+        {
+            _recipeRepository.RemoveFavorite(userId, recipeId);
+        }
         public List<Recipe> GetFavoriteRecipes(int userId)
         {
             return _recipeRepository.GetFavoriteRecipes(userId);

@@ -60,7 +60,7 @@ namespace RecipeSystem.Models
         [Range(0.01, double.MaxValue, ErrorMessage = "Количество должно быть больше 0")]
         public decimal Quantity { get; set; }
 
-        [StringLength(20, ErrorMessage = "Единица измерения не должна превышать 20 символов")]
+        [StringLength(50, ErrorMessage = "Единица измерения не должна превышать 50 символов")]
         public string? Measure { get; set; }
     }
 

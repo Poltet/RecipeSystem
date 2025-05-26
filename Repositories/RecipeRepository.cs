@@ -15,19 +15,6 @@ namespace RecipeSystem.Repositories
                 throw new ArgumentNullException(nameof(context));
             }
             _context = context;
-            SetDefaultRecipe();
-        }
-
-        public void SetDefaultRecipe()
-        {
-            if (!_context.Recipes.Any())
-            {
-                var recipe1 = new Recipe { Id = 1, Name = "каша", Description = "descr", CookingTime = 30, Servings = 2, CategoryID = 1, ComplexityId = 1};
-                var recipe2 = new Recipe { Id = 2, Name = "суп", Description = "описание", CookingTime = 40, Servings = 3, CategoryID = 1, ComplexityId = 2};
-
-                _context.Recipes.AddRange(recipe1, recipe2);
-                _context.SaveChanges();
-            }
         }
 
         public List<Recipe> GetRecipes()
@@ -199,7 +186,6 @@ namespace RecipeSystem.Repositories
                 .Include(ur => ur.Steps)
                 .Where(ur => ur.UserId == userId && !ur.IsDeleted) // Исключаем удалённые
                 .ToList();
-            Console.WriteLine($"Найдено пользовательских рецептов для UserId={userId}: {recipes.Count}");
             foreach (var r in recipes)
             {
                 Console.WriteLine($"UserRecipe: Id={r.Id}, BaseRecipeId={r.BaseRecipeId}, Name={r.Name}, IsDeleted={r.IsDeleted}");
@@ -318,11 +304,6 @@ namespace RecipeSystem.Repositories
         public List<Complexity> GetComplexity()
         {
             var complexities = _context.Complexity.ToList();
-            Console.WriteLine($"Loaded complexities: {complexities.Count} items");
-            foreach (var c in complexities)
-            {
-                Console.WriteLine($"Complexity: Id={c.Id}, Name={c.Name}");
-            }
             return complexities;
         }
 
@@ -334,7 +315,16 @@ namespace RecipeSystem.Repositories
                 _context.SaveChanges();
             }
         }
-
+        public void RemoveFavorite(int userId, int recipeId)
+        {
+            var favorite = _context.FavoriteRecipes
+                .FirstOrDefault(fr => fr.UserId == userId && fr.RecipeId == recipeId);
+            if (favorite != null)
+            {
+                _context.FavoriteRecipes.Remove(favorite);
+                _context.SaveChanges();
+            }
+        }
         public List<Recipe> GetFavoriteRecipes(int userId)
         {
             return _context.FavoriteRecipes

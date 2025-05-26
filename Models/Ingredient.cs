@@ -11,7 +11,7 @@ namespace RecipeSystem.Models
         public string Name { get; set; }
 
         [Required(ErrorMessage = "Укажите единицу измерения")]
-        [StringLength(20, ErrorMessage = "Единица измерения не должна превышать 20 символов")]
+        [StringLength(50, ErrorMessage = "Единица измерения не должна превышать 50 символов")]
         public string Measure { get; set; }
     }
 }

@@ -29,6 +29,7 @@ namespace RecipeSystem.Models
 
         public int? ComplexityId { get; set; }
         public Complexity? Complexity { get; set; }
+        [StringLength(50)]
 
         [BindNever]
         public byte[]? Photo { get; set; }

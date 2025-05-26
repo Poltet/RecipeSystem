@@ -50,7 +50,7 @@ namespace RecipeSystem.Data
             {
                 entity.HasKey(i => i.Id);
                 entity.Property(i => i.Name).IsRequired().HasMaxLength(50);
-                entity.Property(i => i.Measure).IsRequired().HasMaxLength(20);
+                entity.Property(i => i.Measure).IsRequired().HasMaxLength(50);
             });
 
             modelBuilder.Entity<RecipeIngredient>(entity =>
@@ -98,7 +98,7 @@ namespace RecipeSystem.Data
             {
                 entity.HasKey(uri => new { uri.UserRecipeId, uri.IngredientId });
                 entity.Property(uri => uri.Quantity).IsRequired();
-                entity.Property(uri => uri.Measure).HasMaxLength(20);
+                entity.Property(uri => uri.Measure).HasMaxLength(50);
                 entity.HasOne(uri => uri.UserRecipe).WithMany(ur => ur.RecipeIngredients).HasForeignKey(uri => uri.UserRecipeId);
                 entity.HasOne(uri => uri.Ingredient).WithMany().HasForeignKey(uri => uri.IngredientId);
             });
